@@ -1,5 +1,7 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
+#define VM
+#define USERPROG
 
 #include <debug.h>
 #include <list.h>
@@ -12,7 +14,6 @@
 #ifdef VM
 #include "vm/vm.h"
 #endif
-
 #define MAX_FD (1 << 9) 	// 최대 FD 개수 (전체 범위 순회 시 사용)
 
 /* States in a thread's life cycle. */
@@ -134,8 +135,8 @@ struct thread {
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
+	struct list frame_table;
 #endif
-
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */

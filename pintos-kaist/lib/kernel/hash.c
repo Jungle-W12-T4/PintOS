@@ -8,6 +8,7 @@
 #include "hash.h"
 #include "../debug.h"
 #include "threads/malloc.h"
+#include "vm/vm.h"
 
 #define list_elem_to_hash_elem(LIST_ELEM)                       \
 	list_entry(LIST_ELEM, struct hash_elem, list_elem)
@@ -77,11 +78,12 @@ hash_clear (struct hash *h, hash_action_func *destructor) {
    hash_insert(), hash_replace(), or hash_delete(), yields
    undefined behavior, whether done in DESTRUCTOR or
    elsewhere. */
-void
-hash_destroy (struct hash *h, hash_action_func *destructor) {
-	if (destructor != NULL)
-		hash_clear (h, destructor);
-	free (h->buckets);
+void 
+hash_page_destroy(struct hash_elem *e, void *aux)
+{
+    struct page *page = hash_entry(e, struct page, h_elem);
+    destroy(page);
+    free(page);
 }
 
 /* Inserts NEW into hash table H and returns a null pointer, if

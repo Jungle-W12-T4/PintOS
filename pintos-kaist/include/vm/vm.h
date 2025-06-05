@@ -2,6 +2,7 @@
 #define VM_VM_H
 #include <stdbool.h>
 #include "threads/palloc.h"
+#include "lib/kernel/hash.h"
 
 enum vm_type {
 	/* page not initialized */
@@ -36,6 +37,14 @@ struct thread;
 
 #define VM_TYPE(type) ((type) & 7)
 
+#define destroy(page)            \
+  do {                           \
+    if ((page)->operations->destroy)  \
+      (page)->operations->destroy(page); \
+  } while (0)
+
+#define STACK_LIMIT (USER_STACK - (1 << 20))
+
 /* The representation of "page".
  * This is kind of "parent class", which has four "child class"es, which are
  * uninit_page, file_page, anon_page, and page cache (project4).
@@ -44,6 +53,9 @@ struct page {
 	const struct page_operations *operations;
 	void *va;              /* Address in terms of user space */
 	struct frame *frame;   /* Back reference for frame */
+	struct hash_elem h_elem;
+	bool writable;
+	enum vm_type vm_type;
 
 	/* Your implementation */
 
@@ -63,6 +75,15 @@ struct page {
 struct frame {
 	void *kva;
 	struct page *page;
+	struct list_elem elem;
+	bool pinned;
+};
+
+struct lazy_load_arg{
+	struct file *file;
+	off_t ofs;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
 };
 
 /* The function table for page operations.
@@ -85,6 +106,7 @@ struct page_operations {
  * We don't want to force you to obey any specific design for this struct.
  * All designs up to you for this. */
 struct supplemental_page_table {
+	struct hash pages;
 };
 
 #include "threads/thread.h"
@@ -108,5 +130,6 @@ bool vm_alloc_page_with_initializer (enum vm_type type, void *upage,
 void vm_dealloc_page (struct page *page);
 bool vm_claim_page (void *va);
 enum vm_type page_get_type (struct page *page);
+void vm_frame_free(struct frame *f);
 
 #endif  /* VM_VM_H */

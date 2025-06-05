@@ -277,6 +277,8 @@ int process_exec(void *f_name)
 	 * - 페이지 테이블 해제
 	 * - 유저 스택 정리 등 */
 	process_cleanup();
+	
+	supplemental_page_table_init(&thread_current()->spt);
 
 	/* 파일 이름 파싱 결과의 첫 번째 토큰은 실제 실행할 파일 이름임 */
 	ASSERT(argv[0] != NULL);
@@ -773,7 +775,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (ofs % PGSIZE == 0);
 
-	file_seek (file, ofs);
 	while (read_bytes > 0 || zero_bytes > 0) {
 		/* Do calculate how to fill this page.
 		 * We will read PAGE_READ_BYTES bytes from FILE
@@ -853,6 +854,22 @@ lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+	struct lazy_load_arg *args = aux;
+	struct file *file = args->file;
+	off_t offset = args->ofs;
+
+	size_t page_read_bytes = args->page_read_bytes;
+	size_t page_zero_bytes = args->page_zero_bytes;
+	void *kva = page->frame->kva;
+
+
+	if(file_read_at(file,kva,page_read_bytes,offset)!=(int)page_read_bytes){
+		palloc_free_page(kva);
+		return false;
+	}
+
+	memset((uint8_t*)kva + page_read_bytes,0,PGSIZE - page_read_bytes);
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -884,15 +901,27 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
-		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux))
+		struct lazy_load_arg *aux = malloc(sizeof(struct lazy_load_arg));
+		if (aux == NULL)
 			return false;
+
+		aux->file = file;
+		aux->ofs = ofs;
+		aux->page_read_bytes = page_read_bytes;
+		aux->page_zero_bytes = page_zero_bytes;
+
+		// ✨ 페이지 예약
+		if (!vm_alloc_page_with_initializer(VM_FILE, upage, writable, lazy_load_segment, aux))
+		{
+			free(aux);
+			return false;
+		}
 
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+		ofs += page_read_bytes;
 	}
 	return true;
 }
@@ -902,11 +931,27 @@ static bool
 setup_stack (struct intr_frame *if_) {
 	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
+	struct supplemental_page_table *spt = &thread_current()->spt;
 
-	/* TODO: Map the stack on stack_bottom and claim the page immediately.
-	 * TODO: If success, set the rsp accordingly.
-	 * TODO: You should mark the page is stack. */
-	/* TODO: Your code goes here */
+	// stack 용도 표시까지 포함하여 예약
+	success = vm_alloc_page_with_initializer(VM_ANON, stack_bottom, true, NULL, NULL);
+
+	if (success) {
+		// 실제 물리 페이지 연결
+		struct page *page = spt_find_page(spt, stack_bottom);
+		if(page != NULL){
+			page->vm_type |= VM_MARKER_0;
+		}
+		success = vm_claim_page(stack_bottom);
+
+		if (success) {
+			if_->rsp = USER_STACK;
+		} else {
+			// 실패 시 clean-up
+			if (page != NULL)
+				spt_remove_page(spt, page);
+		}
+	}
 
 	return success;
 }

@@ -18,7 +18,7 @@
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
-void check_address(void *addr);
+
 
 static void sys_halt();
 static tid_t sys_exec(const char *cmd_line);
@@ -64,6 +64,9 @@ syscall_init (void) {
 
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f UNUSED) {
+	#ifdef VM
+    thread_current()->stack_pointer = f->rsp;
+	#endif
 	uint64_t syscall_num = f->R.rax;
 	uint64_t arg1 = f->R.rdi;
 	uint64_t arg2 = f->R.rsi;
@@ -123,6 +126,8 @@ void syscall_handler(struct intr_frame *f UNUSED) {
 	}
 }
 
+#ifndef VM
+
 void check_address(void *addr)
 {
 	// 널 포인터는 사용할 수 없으므로 바로 종료
@@ -139,6 +144,18 @@ void check_address(void *addr)
 	if (pml4_get_page(thread_current()->pml4, addr) == NULL)
 		sys_exit(-1);
 }
+
+
+#else
+struct page *check_address(void *addr){
+	struct thread *curr = thread_current();
+	if(is_kernel_vaddr(addr) || addr == NULL || !spt_find_page(&curr->spt, addr)){
+		sys_exit(-1);
+	}
+	return spt_find_page(&curr->spt, addr);
+}
+
+#endif
 
 static void sys_halt() {
 	// Pintos 기본 제공 종료 함수
@@ -315,6 +332,12 @@ static int sys_filesize(int fd) {
 static int sys_read(int fd, void *buffer, unsigned size) {
 	// 사용자 버퍼 포인터가 유효한지 확인
 	validate_ptr(buffer, size);
+
+	#ifdef VM
+    struct page *page = spt_find_page(&thread_current()->spt, buffer);
+    if (page && !page->writable)
+        sys_exit(-1);
+	#endif
 
 	// 버퍼를 문자 단위로 접근하기 위해 char 포인터로 변환
 	char *ptr = (char *)buffer;

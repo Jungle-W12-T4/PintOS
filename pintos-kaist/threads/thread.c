@@ -134,6 +134,7 @@ void thread_init(void)
    Also creates the idle thread. */
 void thread_start(void)
 {
+	
 	/* Create the idle thread. */
 	struct semaphore idle_started;
 	sema_init(&idle_started, 0);
@@ -240,6 +241,7 @@ tid_t thread_create(const char *name, int priority,
 	/* Allocate thread. */
 	t = palloc_get_page(PAL_ZERO);
 	if (t == NULL)
+		
 		return TID_ERROR;
 
 	/* Initialize thread. */

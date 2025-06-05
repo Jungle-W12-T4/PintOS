@@ -1,0 +1,13 @@
+FAIL
+Kernel panic in run: PANIC at ../../vm/vm.c:165 in vm_get_frame(): todo: implement frame eviction
+Call stack: 0x8004218446 0x8004221a67 0x8004221f3b 0x8004221e73 0x800421d56b 0x8004209435 0x8004209853 0x400cac 0x400cf5
+Translation of call stack:
+0x0000008004218446: debug_panic (lib/kernel/debug.c:32)
+0x0000008004221a67: vm_get_frame (vm/vm.c:168)
+0x0000008004221f3b: vm_do_claim_page (vm/vm.c:286)
+0x0000008004221e73: vm_try_handle_fault (vm/vm.c:256)
+0x000000800421d56b: page_fault (userprog/exception.c:144)
+0x0000008004209435: intr_handler (threads/interrupt.c:352)
+0x0000008004209853: intr_entry (threads/intr-stubs.o:?)
+0x0000000000400cac: (unknown)
+0x0000000000400cf5: (unknown)

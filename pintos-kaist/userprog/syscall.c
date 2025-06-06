@@ -18,7 +18,7 @@
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
-void check_address(void *addr);
+struct page *check_address(void *addr);
 
 static void sys_halt();
 static tid_t sys_exec(const char *cmd_line);
@@ -123,8 +123,9 @@ void syscall_handler(struct intr_frame *f UNUSED) {
 	}
 }
 
-void check_address(void *addr)
+struct page *check_address(void *addr)
 {
+#ifndef VM
 	// 널 포인터는 사용할 수 없으므로 바로 종료
 	if (addr == NULL)
 		sys_exit(-1);
@@ -138,7 +139,27 @@ void check_address(void *addr)
 	// 즉, 유저가 요청한 주소가 현재 유효한 가상 주소인지 확인
 	if (pml4_get_page(thread_current()->pml4, addr) == NULL)
 		sys_exit(-1);
+#else
+	struct thread *curr = thread_current();
+	if (is_kernel_vaddr(addr) || addr == NULL || !spt_find_page(&curr->spt, addr)) {
+		sys_exit(-1);
+	}
+	return spt_find_page(&curr->spt, addr);
+
+#endif
 }
+
+// #else
+// struct page *check_address(void *addr)
+// {
+// 	struct thread *curr = thread_current();
+// 	if (is_kernel_vaddr(addr) || addr == NULL || !spt_find_page(&curr->spt, addr)) {
+// 		sys_exit(-1);
+// 	}
+// 	return spt_find_page(&curr->spt, addr);
+// }
+
+// #endif
 
 static void sys_halt() {
 	// Pintos 기본 제공 종료 함수

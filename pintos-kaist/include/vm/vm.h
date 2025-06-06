@@ -48,8 +48,9 @@ struct page {
 
     // 추가
     struct hash_elem hash_elem; /* SPT에서 사용되는 해시 요소 */
-    struct list_elem elem; /* frame table 등에서 사용 */
+    // struct list_elem elem; /* frame table 등에서 사용 */
     bool writable; /* 페이지가 쓰기 가능한지 여부 */
+	enum vm_type vm_type;
 
     /* 타입별 데이터는 union에 묶여있습니다.
      * 각 함수는 현재 union이 어떤 타입인지 자동으로 감지합니다. */
@@ -68,9 +69,16 @@ struct frame {
     void *kva; // 물리 메모리 주소와 1:1로 매핑된 가상 주소
     struct page *page; // 페이지 구조체
     struct list_elem elem; // frame table에 삽입하기 위한 리스트 노드
-    struct list_elem clock_elem; // clock 리스트용 노드
-    bool accesssed;  // CLOCK 알고리즘용 사용 비트
+    // struct list_elem clock_elem; // clock 리스트용 노드
+    // bool accesssed;  // CLOCK 알고리즘용 사용 비트
     bool pinned;  // 스왑 금지 여부 (페이지 폴트 처리 중 등)
+};
+
+struct lazy_load_info {
+	struct file *file;
+	off_t offset;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
 };
 
 /* 페이지 동작을 위한 함수 테이블입니다.
@@ -93,7 +101,7 @@ struct page_operations {
  * 보조 페이지 테이블 구현에 대해서는 어떠한 제약사항도 없습니다. 
  */
 struct supplemental_page_table {
-   struct hash *hash;
+   struct hash pages;
 };
 
 #include "threads/thread.h"
